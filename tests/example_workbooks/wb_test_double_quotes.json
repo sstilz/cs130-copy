@@ -1,0 +1,11 @@
+{
+    "sheets": [
+        {
+            "name": "Sheet1",
+            "cell-contents": {
+                "A1": "Value with \"quotes\"",
+                "B2": "Another \"quoted\" value"
+            }
+        }
+    ]
+}

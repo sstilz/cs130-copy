@@ -1,0 +1,219 @@
+CS130 Project 2 - Design Document
+=================================
+
+Please answer all questions in this design document.  Note that the final
+feedback section is optional, and you are not required to answer it if you
+don't want to.
+
+Unanswered or incompletely answered questions, or answers that don't actually
+match the code/repository, will result in deductions.
+
+Answers don't have to be deeply detailed!  We are mainly looking for an
+overview or summary description of how your project works, and your team's
+experiences working on this project.
+
+Logistics (7 pts)
+-----------------
+
+L1.  [2pts] Enumerate all teammates here.
+Andrew Huang
+Gabrielle Chang
+Mila Hong
+Sophia Stiles
+
+L2.  [2pts] What did each teammate focus on during this project?
+Andrew - Project 1 Cleanup, Rename, Performance Testing
+Gabbie - JSON - Load & Save, Reorder & Copy, Unittesting, Performance Testing
+Mila - Project 1 Cleanup, Cell Notifications, Project 1 Fixes, Unittesting, Integration Testing
+Sophia - Cell Notifications Functionality, Rename Testing, Project 1 Fixes, Unittesting, Integration Testing
+
+Saturday (1/20)
+All met from 1-3:30pm
+Andrew and Mila met to work on Project-1-Cleanup from 4:00-6:30 pm
+Sophia worked on cell notification implementation from 7pm-12am
+Sunday (1/21)
+Mila and Sophia worked on cell notification updates from 4-6:30
+Wrote tests and implemented 
+Gabbie worked 2-4:30pm on JSON load/save
+Andrew and Gabbie worked 4:30-6 on refactoring JSON, rigorous tests, serialization, changed from using tempfile to actually saving the JSON results in a folder, added small functions throughout the code that we think will be reused elsewhere, for example index_to_cell_location
+Monday
+Mila and Sophia worked on Cell Notifications 4-6 pm
+Tuesday
+Gabbie wrote move and copy and tests 6-12am
+Wednesday
+Thursday
+Mila worked 1:00-4:00 pm on Project 1 fixes
+Andrew worked on Renaming
+Friday
+Mila worked 8-9:30 am on Project 1 fixes
+Everyone worked from 5-10pm to review our code
+Saturday
+Merge Day: 7-9:30 pm Everyone
+Sunday (1/28)
+Code Review with Panthers and Lynx 6 - 8 pm
+Mila and Sophia debugged Project 1 fixes from 8-10pm
+Sophia continued debugging 11pm-1:30am
+Monday (1/29)
+Sophia worked from 8am-1pm on Project 1 fixes
+Mila worked from 4-10 pm on Project 1 fixes
+Gabbie worked on cell notification/integration tests 6-2am
+Tuesday (1/30)
+Sophia worked from 8am-3pm on Project 1 fixes + spec checking + JSON test fixes
+Mila worked on 5:30 - 12:00 am on Project 1 fixes + spec checking + Rename, Copy, Reorder, Cell Notifications test/bug fixes
+Gabbie worked on performance tests 9-12:30 am 
+Wednesday (1/31)
+Mila worked 10:30 - 1 pm on integration Testing
+Sophia worked on integration testing from 7pm-2am on integration testing
+Gabbie worked on performance tests and design doc for 30 minutes
+Andrew
+Thursday (2/1)
+Mila and Sophia checked integration testing from 12:30-1pm
+
+L3.  [3pts] Approximately how many hours did each teammate spend on the project?
+
+Andrew: 25 hours
+Sophia: 35 hours
+Mila: 35 hours
+Gabbie: 30 hours
+
+Spreadsheet Engine Design (11 pts)
+----------------------------------
+
+D1.  [3pts] Briefly describe how your workbook-loading code operates.  Does
+     it do anything sophisticated to optimize the performance of loading a
+     workbook, such as deferring cell-value update calculations, or analyzing
+     the graph of cell dependencies?
+
+We read in the JSON file and convert it to a dictionary. If successful, we add all the sheets to the newly created workbook and set the contents of each cell with “set_cell_contents”. We don’t do anything sophisticated in terms of deferring calculations or setting in some order of dependency. However, this would be a reasonable option in the future if loading performance is a problem.
+
+D2.  [4pts] Sheet-level operations like copying a sheet, deleting a sheet,
+     renaming a sheet, or even creating a new sheet, can cause cell values
+     to be updated.  How does your workbook identify such cells and ensure
+     that they are updated properly?
+
+After creating, deleting, and renaming a sheet, we run a topological sort and update all cell values as necessary.
+
+Copying a sheet involves calling Workbook.new_sheet() and calling set_cell_contents() many times for each cell. Both functions run topological sort and evaluate all cells.
+
+D3.  [4pts] When renaming a sheet, cells with formulas that explicitly
+     reference the renamed sheet must be updated with the new sheet name.
+     Give an overview of how your implementation updates these formulas.
+
+We created an internal function called _evaluate that runs a topological sort and loops through all the cells in the sorted order and evaluates each formula. It also assigns bad-reference errors as necessary. After renaming a sheet, we run this function. 
+
+Informal Design Reviews (16 pts)
+--------------------------------
+
+R1.  [4pts] What insights did your team gain regarding the design of *your
+     own* spreadsheet engine code?  What parts of your design are you happy
+     with?  What parts might require further attention in the future?
+
+We realized that we could make more trade offs involving memory in favor of runtime. We were pretty happy with our graph code and how we implemented the dependency graph. 
+
+We met with one team that implemented the spreadsheet as a matrix. Overall, we realized that we should emphasize runtime over memory usage in the future. This didn’t point to anything wrong with our current design, but it may inform future design choices.
+
+R2.  [4pts] Did you feel like you were effective at helping other teams
+     assess *their* software designs?  Briefly discuss what went well, and
+     what could have gone better, in your interview of another team.
+
+By talking through our designs and discussing how their designs handled specific actions, we were able to warn them of bugs and errors that we faced. 
+
+For example, we gave one team the idea of a test where a sheet name had an exclamation point in it. 
+
+R3.  [4pts] How closely did your team's design match the designs of the
+     other teams you talked with?  Briefly discuss significant similarities
+     and differences between your team's approach and other teams' approaches.
+
+One team represented each sheet as a matrix, where all cells were initialized as empty cells within the current extent, which grew with addition of cells beyond the extent. In contrast, our design had each cell be an independent node. The matrix design may be useful in the future, if we want to add in row/col based operations.
+
+One big design difference was that we chose to use a global graph representation, while both of the teams we talked to used an implicit graph using pointers in their cell class.
+
+R4.  [4pts] Which GRASP principles were the most pertinent in your
+     discussions?  How much of your discussions referenced the GRASP
+     principles?
+
+The low coupling principle was the most pertinent to our discussion. We discussed with different groups about how they tried to split the design up into independent parts.
+
+Due to the larger size of our group, we naturally had to consider more ways to divide the features into independent parts, so that we can work in parallel. One group we talked to had 3 people, and it was interesting how their development process was much different. They didn’t use branches or merging at all. They worked as a team to develop each feature one at a time. They mentioned that figuring out the dependencies among the features was most of their organizational/design work (loading and saving is independent, cell notification should be done at the end, since rename sheet/etc would impact its implementation, etc.)
+
+It was also interesting to us that this smaller team didn’t have many files — most of the logic was all in the workbook file. They noted that this made for faster development time. As the features got more complicated, they would organize their code as necessary. Meanwhile, our codebase is relatively organized into different files based on different features. This has created some amount of overhead now, but hopefully it will pay off as features get more complex.
+
+Creator - workbook is in charge of instantiating worksheets, cells, and evaluating.
+Information expert - for cells beyond max extent, it should be the formula evaluator’s job to convert the cell;’s value to bad reference. THe workbook should not care about a cell’s invalid location because it doesn’t have the true power to convert its value to a reference anyways.
+Low coupling - our graph class stands completely on its own and the nodes are abstracted away. They do not have to be filled with cells.
+Pure fabrication - workbook utility classes
+
+
+Performance Analysis (16 pts)
+-----------------------------
+
+In this project you must measure and analyze the performance of two central
+areas of your spreadsheet engine.  Using pair programming, construct some
+performance tests to exercise these aspects of your engine, and use a profiler
+to identify where your program is spending the bulk of its time.
+
+A1.  [4pts] Briefly enumerate the performance tests you created to exercise
+     your implementation, along with the teammates that collaborated to
+     implement each of them.
+
+We created 5 performance tests. Gabbie and Andrew collaborated on each.
+1. Linear Dependency Graph Test: Constructs a long, linear chain of dependencies, where each cell depends on its predecessor, testing cell-calculation updates in a linear sequence.
+2. Bushy Graph Test: Tests cell calculation in a short, bushy tree structure, where a single change affects many cells, each parent having multiple children.
+3. Linear Cycle Detection Test: Builds a linear dependency chain and introduces a circular reference at the end, focusing on the cycle-detection mechanism in a linear context.
+4. Bushy Cycle Detection Test: Similar to the bushy graph test, but with a circular reference introduced, testing the cycle detection in a complex, multi-level tree structure.
+5. Multiple Sheet Cycle Detection Test: Constructs 2 linear chains of dependencies in separate sheets, introduces a cycle between them, and tests cycle detection in a multi-sheet scenario.
+
+A2.  [2pts] What profiler did you choose to run your performance tests with?
+     Why?  Give an example of how to invoke one of your tests with the profiler.
+
+We chose to use cProfile, since it was suggested in lecture. It was also easy to find documentation because it’s a part of Python's standard library. We originally used the ‘timeit’ library, but decided to swap to just cProfile because it had more detailed information about  execution time and we figured it would be most likely to be used in the future. Our performance tests are automatically invoked with the profile. As the performance tests run, they print out the top 15 functions sorted by cumulative time. Our performance tests automatically use the profiler, so we would just run python test_performance.py.
+
+A3.  [6pts] What are ~3 of the most significant hot-spots you identified in your
+     performance testing?  Did you expect these hot-spots, or were they
+     surprising to you?
+
+Unsurprisingly, the most significant hotspot was set_cell_contents(). Within this function, we call graph algorithms like tarjans, and then evaluate the graph in sorted order.
+
+There were 3 functions called as a result of set_cell_contents that were particularly noticeable:
+1. Is_error_string
+Surprisingly, functions involved in string comparisons showed high cumulative times, such as is_error_string() which just checked if a string was in a list of strings. This revealed to us that we could cache results or use a set data structure instead of a list for these checks to drop this time significantly.
+
+2. Lark.visitors.visit within Formula_evaluator.evaluate
+This function visits each of the nodes within each parse tree.
+
+3. Formula_evaluator. Handle_empty_cell_decimal
+This function is within formula_evaluator and took up a lot of time. We use it to process all of the child nodes and handle implicit conversion to decimals/strings.
+
+
+Finally, we found that when the chain length of formulas increased above 1000, our recursive implementation of tarjan’s algorithm reached the recursion limit. We now modified our implementation so that it is entirely iterative.
+
+
+A4.  [4pts] Reflect on the experience of pair-programming as you constructed
+     these tests.  What went well with it?  What would you like to try to do
+     better in the future?
+
+Gabbie and Andrew pair-programmed the tests. It allowed for more effective brainstorming and it was helpful to learn about cProfile together because we were both unfamiliar. We also noticed that our discussions led to fewer bugs and a higher standard of code quality. However, we noticed that pair programming took significantly longer, so in order for this to be sustainable, we would need to try to be more disciplined about time management in the future.
+
+Section F:  CS130 Project 2 Feedback [OPTIONAL]
+-----------------------------------------------
+
+These questions are OPTIONAL, and you do not need to answer them.  Your grade
+will not be affected by answering or not answering them.  Also, your grade will
+not be affected by negative feedback - we want to know what went poorly so that
+we can improve future versions of the course.
+
+F1.  What parts of the assignment did you find highly enjoyable?  Conversely,
+     what parts of the assignment did you find unenjoyable?
+
+
+F2.  What parts of the assignment helped you learn more about software
+     engineering best-practices, or other useful development skills?
+     What parts were not helpful in learning these skills?
+
+
+F3.  Were there any parts of the assignment that seemed _unnecessarily_ tedious?
+     (Some parts of software development are always tedious, of course.)
+
+
+F4.  Do you have any feedback and/or constructive criticism about how this
+     project can be made better in future iterations of CS130?

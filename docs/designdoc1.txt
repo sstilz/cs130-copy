@@ -1,0 +1,150 @@
+﻿CS130 Project 1 - Design Document
+=================================
+
+Logistics (7 pts)
+-----------------
+
+L1.  [2pts] Enumerate all teammates here.
+Gabbie Chang, Mila Hong, Andrew Huang, Sophia Stiles 	
+
+L2.  [2pts] What did each teammate focus on during this project?
+Andrew and Sophia focused on implementing a workbook, worksheet, and cycle detection/Tarjan’s algorithm. Mila and Gabbie focused on implementing cell, lark_parser, and formula evaluation, with Mila focusing a little more on cell/lark_parser and Gabbie focusing a little more on evaluation. Sophia and Gabbie worked on integration tests and Mila and Andrew also worked on end-to-end testing.
+
+L3.  [3pts] Approximately how many hours did each teammate spend on the project?
+We met Sunday (1/7), Monday (1/8), Tuesday (1/9), Friday (1/10), Saturday (1/11), and Wednesday (1/17), Friday (1/19) as a group offour for roughly 2 hours each time. Additionally, we broke off into pairs and each pair met ~5 times for 2 hours each. We each also spent time thinking, designing, and coding solo. We spent a significant amount of time (6 hours) together on Wednesday (1/17) putting together all parts of the project, debugging, and writing the design doc. After writing tests, we met on Friday (1/19) to fix bugs discovered by testing and do final version 1 changes. We estimate each teammate spent 30 hours on this project. 
+
+Spreadsheet Engine Design (20 pts)
+----------------------------------
+
+D1.  [3pts] Briefly describe the high-level design abstractions (e.g. classes
+     and/or submodules) in your spreadsheet engine, and what purposes these
+     various abstractions fulfill.
+Graph: this class stands on its own even without anything related to spreadsheets. It includes functionality for Tarjan’s algorithm (cycle detection and strongly connected components) and topological sort
+Worksheet: tracks all the cells in a given sheet. Uses a row and col heap to keep track of the sheet’s extent.
+Workbook: contains all worksheet objects and in the proper order. Maintains a graph, where each nodes represent cells and edges refer to cells that depend on each other (i.e., through formulas). Edges can connect cells from different sheets.
+Cell: contains content, value, tree, type, and list of references. We use getter methods and is_type methods to access internal data.
+CellError: represents an error value from user input, cell parsing, or evaluation
+LarkParser: gathers cell references and parses formulas into trees
+FormulaEvaluator: evaluator that executes the expression represented by a parse tree
+
+D2.  [4pts] Why did you choose the design you chose?  Describe other designs
+     (or perhaps earlier versions of the above design) that you considered,
+     and why you ended up not using them.
+For the first week our group’s ideas fluctuated depending on what we had heard in lecture, advice from office hours, and our own debates. We did lots of whiteboarding. Sometimes a time sink we fell into was trying to overly optimize or focus on parts that were not high-level. 
+Our first idea was to break up the project into a Workbook, Sheet, and Cell. We were unsure if we would need the Sheet to begin with, but eventually decided to keep it so we could easily get the extent of a sheet via keeping track of the cell locations furthest from the origin in a max heap. We thought the Workbook could include a cell map that mapped a tuple of information (sheet, row, col) to a cell.  
+Initially, we were doing parsing and evaluation together, but have since separated those steps. This is because when working on the evaluator, we needed the parse tree from the parser, a method from Workbook, and also needed to know which sheet a cell came from in case it was just a local cell location (for example A1) instead of a cross-sheet cell location (for example Sheet2!A1). 
+One design decision was choosing where to detect BAD_REFERENCE’s and we were stuck between doing this in the parsing step, cycle detection, or evaluation. The parsing part is just supposed to form a tree, and for the circular reference part all a cell needs to know is if it's in a cycle or not. Thus in the evaluation step, we need to know the actual values to do calculations and it would make sense to detect BAD_REFERENCE’s here.
+Another design question was if a cell needs to know its parents and children, or just its children. We decided to just have it know its children to avoid unnecessary complexity.  
+We struggled with deciding if parsing should be done at the cell or workbook level, and decided to do it at the cell level. 
+In terms of errors, we considered adding an error attribute to the Cell class but decided it would be more effective to just set the Cell’s value to an error string. We all agreed that it was dangerous to set the Cell’s contents to anything related to an error.
+As things fell more into place, we continued to have design discussions and iterate on our ideas. For example, after we had most of our code we decided which methods should be private. 
+At some point we wanted to optimize for future projects, predicting that we’d eventually need to perform operations grouped by ranges of cells. For example, if an operation were to be done on cells H20-H30 containing property A, we could compare the number of cells having property A with the number of cells in that range, and depending on which number was lower, we would iterate through the range of cells vs. all cells containing that property.
+
+D3.  [4pts] At a high level (e.g. pseudocode or higher), enumerate the steps
+     that your spreadsheet engine goes through when a caller sets a cell's
+     contents.
+A caller sets contents using Workbook.set_cell_contents(sheet_name, location, contents).
+If a Cell object hasn’t already been created, create the cell: retrieve Sheet object using `sheet_name`, create Cell object using `contents` and `location`, and insert Cell into Sheet using `location`.
+Clear any references that the cell uses. If the cell is a formula and has references, add edges to the graph.
+Run Tarjan’s algorithm, which populates the strongly connected components (SCCs) of the graph. If an SCC contains more than one node, a cycle exists, so we set every cell in that SCC to a CIRCULAR_REFERENCE error.
+Build a directed acyclic graph (DAG) representing the edges between SCCs
+Using the DAG, run topological sort to obtain a sorted list of SCCs. This gives us a correct order of cells to evaluate cells/references from.
+Evaluate every cell in the order of topological sort. Evaluation will internally handle error propagation as well.
+Specifically, for each cell, we pass the cell’s parse tree into the FormulaEvaluator, which uses Lark to visit the tree and return a Lark value.
+If during evaluation, we encounter a error, we record the error in terms of its string representation (ex: “#ERROR!”) and propagate it up. Note that we have a first error method that just propagates the first error it finds. Once we finish evaluating the tree, if the evaluated value is an error string, then we create a CellError object with the corresponding error type and then set the cell’s value to the newly initialized CellError object.
+Otherwise, the evaluation was successful, so we set its value to the actual value returned by Lark.
+
+D4.  [3pts] How does your spreadsheet engine identify what other cells need
+     updating when a cell's contents are changed, and what order to update them?
+We maintain a graph of cells on the Workbook level, with edges representing cell references. For example, if cell A1=B1+C1, the graph contains edges B1 -> A1 and C1 -> A1.
+When a cell is updated, we find the current cell in the graph, delete all in-edges to it, and add a fresh node representing that new cell into the graph. This way, we make sure both the parents and children of this updated cell are accurate.
+We can then retrieve that Cell object from the graph and evaluate all those cell references in the order returned by topological sort.
+
+D5.  [3pts] How does your spreadsheet engine identify cycles between cells when
+     a cell update is performed?  Are cells in a cycle processed any differently
+     from other cells outside of the cycle?
+Each cell is recorded in a graph on the Workbook level, with edges representing references between cells. Specifically, nodes in the graph are tuples of (sheet_name, cell_location). Whenever we update, we look at the cell’s references (i.e., children) and then run Tarjan’s algorithm, which populates the graph’s strongly connected components.
+If we update a cell’s references such that we create a cycle, all cells in that cycle are automatically assigned CIRCULAR_REFERENCE errors.
+Say a cell is in a cycle where its value is already set to a CIRCULAR_REFERENCE_ERROR. If a reference to a cell in the cycle gets updated such that it breaks the circular reference cycle, it will be easy to reverse the cell’s error value, since its contents are still stored. We simply look at the cell’s contents and revert it to what it should be without the error.
+
+D6.  [3pts] What steps does your spreadsheet engine go through when a sheet is
+     deleted from a workbook?  How does it identify cells that may need to be
+     recomputed after a sheet-deletion operation?
+Delete all cells belonging to the sheet that’s about to be deleted, as well as all references that the deleted cells in the graph have. If a deleted cell is referenced by an existing cell, the node representing the deleted cell is still in the graph. When evaluating, cells in sheets that don’t exist are not evaluated, and formula parser returns bad reference for cells that don’t exist
+Decrement the order of all worksheets in the Workbook to accurately reflect the tab orderings for post-deletion.
+Now we can finally delete the entry of that sheet from our Workbook fields.
+Since we changed the graph object, we must also reevaluate the relevant cells/nodes in the graph.
+We must run Tarjan’s algorithm again because say we had a cycle between two cells from two different sheets, and then you deleted one of those sheets - then the graph’s SCCs would change. We need the SCCs to be accurate so that we generate the correct DAG, which determines the topological sort order (aka the order in which we re-evaluate the cells).
+
+Implementation Process (23 pts)
+-------------------------------
+
+P1.  [4pts] How did your team break down and keep track of the various tasks to
+     complete for this project?  Did you use the GitHub issue tracker, or some
+     another tool like Trello?
+Together we whiteboarded the high-level abstractions and planned out the classes and function headers. The notes on the whiteboard were detailed, and included all the methods that we needed to write and how they interacted with each other. Then we split the classes up between pairs. 
+We used a shared document to keep track of high-level tasks that each pair would need to implement. We also stayed in touch with each other through Messenger to remind each other what we had to do and stay updated, almost like a virtual “standup”. 
+
+P2.  [4pts] How did you assign tasks to teammates?  Did you stick with your
+     task-assignments through the project, or did you shift around tasks as the
+     has the project progressed?  Why?
+After discussing as a group the general abstractions we assigned cell and evaluation tasks to Mila and Gabbie and worksheet and workbook tasks to Andrew and Sophia
+We split tasks this way because these seemed to be naturally independent tasks that would have less codependencies. However, when it came to actual implementation, this wasn’t 100% the case. For example, when it came to Gabbie and Mila writing the evaluator, cells need to know which sheet they belong to, have access to the workbook object to call get_cell_value(), and have the parse tree which was being done at the cell level and wasn’t accessible to workbook. At the same time, Andrew and Sophia were calling evaluate_content() as a filler function. Once we all merged our code together, we had to refactor to create a more permanent solution. 
+We stuck with task assignments throughout the project. In order to avoid only certain people understanding certain files, we made sure to check in with each other and often would go through the changed code and explain what it did to each other. 
+
+P3.  [4pts] How would you characterize the quality of your project testing?
+     Make sure to touch on these items:  Is it automated?  Is it easy for
+     teammates to run?  Is it fast?  Is it reasonably complete?
+The testing is automated
+It’s easy for teammates to run as all tests are within the tests folder in our repo
+All tests are fast and each file runs in max 30 seconds
+Tests are complete, as we have unit tests for all functions as well as extensive testing for the core functionality, such as set_cell_contents(). 
+There are smoke tests to verify crucial spreadsheet functionality such as creating workbooks, adding sheets, adding and updating cells, as well as testing various cell types and errors
+We have integration tests that check the interactions between the cell micro level and the workbook macro level. For example, “test_set_cell_contents_with_formulas()” creates sheets and cells, sets up formulas with references, and updates cells too.
+Some tests were created with the intention of being temporary. For example, we used a mock test when the workbook wasn’t completely linked with the evaluator yet so that we could test that the evaluator was working.
+
+P4.  [3pts] What mechanisms did your team use for communication during the
+     project?  Did you find them to be effective?  What issues did you
+     encounter, if any?
+We conducted regular meetings, gathering six times as a group of four. These meetings streamlined updates on our pair work and offered a forum to address any issues or concerns related to each other's assigned tasks. Additionally, we maintained an active group chat through a messenger platform.
+The use of whiteboarding proved effective, as it allowed us to discuss concepts without delving too deeply into the intricacies of proper coding syntax.
+
+P5.  [3pts] Did you use any kind of collaborative construction techniques, e.g.
+     code reviews or pair-programming, during the project?  If so, what are your
+     observations about its usefulness?  Did you find it to have any downsides?
+We engaged in a combination of pair programming and code reviews. To illustrate, Sophia and Andrew collaborated in pair programming, while Gabbie and Mila formed another programming pair. Within each pair, we occasionally divided the tasks and later conducted code reviews on our respective partner's code.
+To provide a specific instance, Mila and Gabbie initially collaborated on pair programming for cells, parsers, and evaluation. Subsequently, they divided the work to individually complete each task. Once both Mila and Gabbie finished their respective parts, they conducted code reviews on each other's code.
+Oftentimes when we met up as a whole group, we would show each other the code that we had written in pairs and explained what it did and what problems we were running into.
+
+P6.  [5pts] What would you like to improve about your team's development
+     process, going forward?
+This week, we collectively explored high-level concepts as a group and later engaged in pair programming. Going forward, for analogous program segments, we can distribute tasks within each pair, as well as among pairs.
+In terms of our workflow this week, we initiated the merging process on Wednesday. To alleviate stress, our goal moving forward is to commence merging on Tuesday night. This implies that we should ideally complete our pair work by Monday night.
+This project we kept track of tasks to be completed informally, and next time we could try to use the Github issue tracker to emulate an industry-like coding environment. This could be very helpful for the future when we will eventually forget the tasks we did for previous projects or what was difficult about them. 
+Most group members attended lectures, took notes, and were able to share ideas with anyone who wasn’t able to make it. That was everyone was caught up in case a hint or good idea was mentioned in class. 
+
+
+Section F:  CS130 Project 1 Feedback [OPTIONAL]
+-----------------------------------------------
+
+These questions are OPTIONAL, and you do not need to answer them.  Your grade
+will not be affected by answering or not answering them.  Also, your grade will
+not be affected by negative feedback - we want to know what went poorly so that
+we can improve future versions of the course.
+
+F1.  What parts of the assignment did you find highly enjoyable?  Conversely,
+     What parts of the assignment did you find unenjoyable?
+We found working in teams and pair programming to be particularly enjoyable. We had productive group discussions. One challenge we found unenjoyable at times was revisiting and refining our code due to overlooked parts of the spec (for example, we initially forgot to do implicit conversion in our evaluator). Although this was initially frustrating, it provided valuable lessons in the importance of meticulous review and adaptability in software engineering.
+
+F2.  What parts of the assignment helped you learn more about software
+     engineering best-practices, or other useful development skills?
+     What parts were not helpful in learning these skills?
+We felt like setting up a Github repository and using Github instead of Labradoodle helped us understand the platform better. Also, it was all of our first times using Github copilot and it was nice to get hands-on experience with this tool. We also wrote tests which helped us understand quality assurance.
+
+F3.  Were there any parts of the assignment that seemed _unnecessarily_ tedious?
+     (Some parts of software development are always tedious, of course.)
+Based on the warnings that we got in class about the dangers of writing bad code to start, we spent a lot of time doing extensive planning and discussions instead of coding. However, although time-consuming, this was anticipated and necessary for foundational development. Also, at times when we worked on code individually or in pairs, it was challenging to integrate/connect the parts at the end. 
+
+F4.  Do you have any feedback and/or constructive criticism about how this
+     can the project be made better in future iterations of CS130?
+We appreciated the lectures that had to do with the actual coding parts of the project, for example when you showed us how to use the Lark parser. We would like more emphasis on practical coding sessions and demonstrations to effectively link theory with practice. It was nice when you showed us in class how to write good tests for the “store” example. 
